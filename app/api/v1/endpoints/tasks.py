@@ -5,8 +5,10 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.core.task_manager import cancel_task, get_task_status, list_tasks
+from app.services import task_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,3 +43,17 @@ async def cancel_task_endpoint(task_id: str):
             detail=f"任务已终结，当前状态: {task.get('status')}",
         )
     return {"task_id": task_id, "message": "取消请求已发送"}
+
+
+@router.get("/task-thinking/{task_id}")
+async def get_task_thinking_stream(task_id: str):
+    """流式查询任务思考内容（SSE）。"""
+    return StreamingResponse(
+        task_service.get_task_thinking_stream(task_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

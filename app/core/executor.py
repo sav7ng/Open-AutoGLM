@@ -9,6 +9,7 @@
 
 import logging
 import random
+import re
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -21,7 +22,12 @@ from app.core.log_sanitize import (
     mask_adb_address_for_log,
     sanitize_execute_thread_fields,
 )
-from app.core.task_manager import TaskStatus, should_cancel_task, update_task_status
+from app.core.task_manager import (
+    TaskStatus,
+    add_thinking_log,
+    should_cancel_task,
+    update_task_status,
+)
 from phone_agent.agent import AgentConfig, PhoneAgent
 from phone_agent.adb.connection import ADBConnection
 from phone_agent.device_factory import DeviceType, get_device_factory, set_device_type
@@ -32,6 +38,10 @@ logger = logging.getLogger(__name__)
 _device_factory_lock = threading.Lock()
 
 SUPPORTED_AGENT_TYPES = {"phone-agent"}
+_THINKING_PATTERNS = [
+    re.compile(r"<think>(.*?)</think>", re.DOTALL),
+    re.compile(r"<redacted_thinking>(.*?)</redacted_thinking>", re.DOTALL),
+]
 
 
 def is_supported_agent_type(agent_type: str) -> bool:
@@ -66,6 +76,7 @@ def execute_agent_task_sync(
             return
 
         update_task_status(task_id, TaskStatus.RUNNING)
+        add_thinking_log(task_id, step=0, thinking="任务开始执行", log_type="thinking")
 
         ctx = sanitize_execute_thread_fields(
             instruction=instruction,
@@ -119,6 +130,7 @@ def execute_agent_task_sync(
         logger.info("[execute] run_as_dict 调用前: task_id=%s", task_id)
         result = agent.run_as_dict(instruction)
         logger.info("[execute] run_as_dict 返回: task_id=%s", task_id)
+        _append_thinking_logs_from_history(task_id, result.get("history", []))
 
         if should_cancel_task(task_id):
             logger.info("任务在执行后被取消: %s", task_id)
@@ -129,6 +141,12 @@ def execute_agent_task_sync(
         result["instruction"] = instruction
         result["agent_type"] = agent_type
 
+        add_thinking_log(
+            task_id,
+            step=max(1, int(result.get("steps_taken", 0))),
+            thinking=result.get("message", "任务执行完成"),
+            log_type="task_completed",
+        )
         update_task_status(task_id, TaskStatus.COMPLETED, result=result)
 
         logger.info(
@@ -143,6 +161,12 @@ def execute_agent_task_sync(
 
     except Exception as e:
         logger.error("任务执行失败: %s, error=%s", task_id, e, exc_info=True)
+        add_thinking_log(
+            task_id,
+            step=0,
+            thinking=f"任务执行失败: {e}",
+            log_type="task_failed",
+        )
         error_result = {
             "task_id": task_id,
             "instruction": instruction,
@@ -243,9 +267,36 @@ def _handle_cancel(
         "history": [],
         "steps_taken": 0,
     }
+    add_thinking_log(
+        task_id,
+        step=0,
+        thinking=f"任务 {task_id} 已取消",
+        log_type="task_cancelled",
+    )
     update_task_status(task_id, TaskStatus.CANCELLED, result=cancel_result)
     if callback_url:
         send_callback_sync(callback_url, cancel_result)
+
+
+def _append_thinking_logs_from_history(task_id: str, history: list[dict]) -> None:
+    """从 history 的 assistant 消息中提取 think 内容并写入日志。"""
+    step = 1
+    for message in history:
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content", "")
+        if not isinstance(content, str):
+            continue
+        extracted = None
+        for pattern in _THINKING_PATTERNS:
+            match = pattern.search(content)
+            if match:
+                extracted = match.group(1).strip()
+                if extracted:
+                    break
+        if extracted:
+            add_thinking_log(task_id, step=step, thinking=extracted, log_type="thinking")
+            step += 1
 
 
 # ==============================

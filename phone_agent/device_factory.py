@@ -59,7 +59,7 @@ class DeviceFactory:
         """Tap at coordinates."""
         return self.module.tap(x, y, device_id, delay)
 
-    def double_tap(
+    def double_tap( 
         self, x: int, y: int, device_id: str | None = None, delay: float | None = None
     ):
         """Double tap at coordinates."""

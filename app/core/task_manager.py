@@ -46,6 +46,7 @@ def create_task_record(
         "result": None,
         "error": None,
         "cancel_requested": False,
+        "thinking_logs": [],
     }
     with _lock:
         _tasks[task_id] = record
@@ -106,3 +107,26 @@ def list_tasks() -> list[dict[str, Any]]:
     """列出所有任务（副本）。"""
     with _lock:
         return [dict(t) for t in _tasks.values()]
+
+
+def add_thinking_log(
+    task_id: str,
+    step: int,
+    thinking: str,
+    log_type: str = "thinking",
+) -> bool:
+    """为任务追加思考日志。任务不存在时返回 False。"""
+    with _lock:
+        task = _tasks.get(task_id)
+        if task is None:
+            return False
+        task["thinking_logs"].append(
+            {
+                "step": step,
+                "log_type": log_type,
+                "thinking": thinking,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        task["updated_at"] = datetime.now(timezone.utc).isoformat()
+        return True
