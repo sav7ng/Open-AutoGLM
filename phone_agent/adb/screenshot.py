@@ -22,13 +22,13 @@ class Screenshot:
     is_sensitive: bool = False
 
 
-def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screenshot:
+def get_screenshot(device_id: str | None = None, timeout: int = 60) -> Screenshot:
     """
     Capture a screenshot from the connected Android device.
 
     Args:
         device_id: Optional ADB device ID for multi-device setups.
-        timeout: Timeout in seconds for screenshot operations.
+        timeout: Timeout in seconds for screencap and adb pull (default 60).
 
     Returns:
         Screenshot object containing base64 data and dimensions.
@@ -59,7 +59,7 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
             adb_prefix + ["pull", "/sdcard/tmp.png", temp_path],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
 
         if not os.path.exists(temp_path):

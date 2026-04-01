@@ -24,6 +24,7 @@ class IOSAgentConfig:
     lang: str = "cn"
     system_prompt: str | None = None
     verbose: bool = True
+    interactive_human: bool = True
 
     def __post_init__(self):
         if self.system_prompt is None:
@@ -94,10 +95,12 @@ class IOSPhoneAgent:
             session_id=self.agent_config.session_id,
             confirmation_callback=confirmation_callback,
             takeover_callback=takeover_callback,
+            interactive_human=self.agent_config.interactive_human,
         )
 
         self._context: list[dict[str, Any]] = []
         self._step_count = 0
+        self._use_injected_context = False
 
     def run(self, task: str) -> str:
         """
@@ -109,11 +112,13 @@ class IOSPhoneAgent:
         Returns:
             Final message from the agent.
         """
-        self._context = []
-        self._step_count = 0
+        if not self._use_injected_context:
+            self._context = []
+            self._step_count = 0
+        self._use_injected_context = False
 
         # First step with user prompt
-        result = self._execute_step(task, is_first=True)
+        result = self._execute_step(task, is_first=(self._step_count == 0))
 
         if result.finished:
             return result.message or "Task completed"
@@ -126,6 +131,35 @@ class IOSPhoneAgent:
                 return result.message or "Task completed"
 
         return "Max steps reached"
+
+    def run_as_dict(self, task: str) -> dict[str, Any]:
+        """
+        Run the agent and return a structured result dict.
+
+        Behaves identically to run() but returns a dict suitable for API responses.
+
+        Args:
+            task: Natural language description of the task.
+
+        Returns:
+            Dict with keys: status, message, history, steps_taken.
+        """
+        try:
+            message = self.run(task)
+            status = "max_steps_reached" if message == "Max steps reached" else "completed"
+            return {
+                "status": status,
+                "message": message,
+                "history": self._context.copy(),
+                "steps_taken": self._step_count,
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+                "history": self._context.copy(),
+                "steps_taken": self._step_count,
+            }
 
     def step(self, task: str | None = None) -> StepResult:
         """
@@ -146,10 +180,25 @@ class IOSPhoneAgent:
 
         return self._execute_step(task, is_first)
 
+    def set_context(self, history: list[dict[str, Any]]) -> None:
+        """
+        Inject external conversation context before calling run().
+
+        When set, the next run() call will skip context reset and continue
+        from the injected context.
+
+        Args:
+            history: List of message dicts (OpenAI chat format).
+        """
+        self._context = list(history)
+        self._step_count = 0
+        self._use_injected_context = True
+
     def reset(self) -> None:
         """Reset the agent state for a new task."""
         self._context = []
         self._step_count = 0
+        self._use_injected_context = False
 
     def _execute_step(
         self, user_prompt: str | None = None, is_first: bool = False

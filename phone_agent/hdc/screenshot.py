@@ -23,13 +23,13 @@ class Screenshot:
     is_sensitive: bool = False
 
 
-def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screenshot:
+def get_screenshot(device_id: str | None = None, timeout: int = 60) -> Screenshot:
     """
     Capture a screenshot from the connected HarmonyOS device.
 
     Args:
         device_id: Optional HDC device ID for multi-device setups.
-        timeout: Timeout in seconds for screenshot operations.
+        timeout: Timeout in seconds for screenshot shell commands and file recv (default 60).
 
     Returns:
         Screenshot object containing base64 data and dimensions.
@@ -74,7 +74,7 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
             hdc_prefix + ["file", "recv", remote_path, temp_path],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
 
         if not os.path.exists(temp_path):

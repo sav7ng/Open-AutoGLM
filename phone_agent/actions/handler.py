@@ -21,6 +21,9 @@ class ActionResult:
     requires_confirmation: bool = False
 
 
+DEFAULT_HUMAN_GATE_MESSAGE = "User intervention required"
+
+
 class ActionHandler:
     """
     Handles execution of actions from AI model output.
@@ -30,6 +33,9 @@ class ActionHandler:
         confirmation_callback: Optional callback for sensitive action confirmation.
             Should return True to proceed, False to cancel.
         takeover_callback: Optional callback for takeover requests (login, captcha).
+        interactive_human: If True (default), invoke callbacks for Take_over and
+            sensitive Tap. If False, finish the task without blocking and use the
+            action ``message`` field for the final message (see design docs).
     """
 
     def __init__(
@@ -37,10 +43,16 @@ class ActionHandler:
         device_id: str | None = None,
         confirmation_callback: Callable[[str], bool] | None = None,
         takeover_callback: Callable[[str], None] | None = None,
+        interactive_human: bool = True,
     ):
         self.device_id = device_id
+        self.interactive_human = interactive_human
         self.confirmation_callback = confirmation_callback or self._default_confirmation
         self.takeover_callback = takeover_callback or self._default_takeover
+
+    @staticmethod
+    def _human_gate_message(action: dict) -> str:
+        return action.get("message", DEFAULT_HUMAN_GATE_MESSAGE)
 
     def execute(
         self, action: dict[str, Any], screen_width: int, screen_height: int
@@ -137,6 +149,12 @@ class ActionHandler:
 
         # Check for sensitive operation
         if "message" in action:
+            if not self.interactive_human:
+                return ActionResult(
+                    success=False,
+                    should_finish=True,
+                    message=self._human_gate_message(action),
+                )
             if not self.confirmation_callback(action["message"]):
                 return ActionResult(
                     success=False,
@@ -234,7 +252,9 @@ class ActionHandler:
 
     def _handle_takeover(self, action: dict, width: int, height: int) -> ActionResult:
         """Handle takeover request (login, captcha, etc.)."""
-        message = action.get("message", "User intervention required")
+        message = self._human_gate_message(action)
+        if not self.interactive_human:
+            return ActionResult(True, True, message=message)
         self.takeover_callback(message)
         return ActionResult(True, False)
 

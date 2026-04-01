@@ -1,0 +1,8 @@
+schema: spec-driven
+
+# Project context (optional) — shown to AI when creating artifacts.
+context: |
+  Open-AutoGLM: Phone Agent CLI — AI-powered Android/iOS/HarmonyOS automation.
+  Entry: main.py; core package phone_agent/ (agent, actions, model, device_factory).
+  Uses OpenAI-compatible APIs; see README.md for env vars (PHONE_AGENT_*).
+  Baseline specs: openspec/specs/architecture, cli-and-environment, agent-runtime, model-and-actions.

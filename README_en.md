@@ -588,6 +588,8 @@ agent = PhoneAgent(
 )
 ```
 
+`AgentConfig.interactive_human` defaults to `True` so the callbacks above are used. When set to `False`, `Take_over` and sensitive `Tap` actions that include `message` do not invoke callbacks (no blocking); the run ends on that step with the model-provided `message` as the result. The bundled HTTP `app` executor uses `interactive_human=False` by default so server-side runs do not wait on stdin.
+
 ## Examples
 
 Check the `examples/` directory for more usage examples:

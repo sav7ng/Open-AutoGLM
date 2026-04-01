@@ -13,6 +13,13 @@ requests>=2.31.0
 # vllm>=0.12.0
 # transformers>=5.0.0rc0
 
+# For API Server (python server.py)
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+# sshtunnel 0.4.x 依赖 paramiko.DSSKey；Paramiko 3+ 已移除 DSSKey。与 AgentDroid 对齐固定 2.x。
+paramiko>=2.12.0,<3.0
+sshtunnel>=0.4.0,<0.5.0
+
 # Optional: for development
 # pytest>=7.0.0
 # pre-commit>=4.5.0

@@ -651,6 +651,8 @@ agent = PhoneAgent(
 )
 ```
 
+`AgentConfig.interactive_human` 默认为 `True`，上述回调会被使用。设为 `False` 时，`Take_over` 与带 `message` 的敏感 `Tap` 不会调用回调（无阻塞），任务在该步结束，返回内容为模型在该动作中给出的 `message`。通过 `app` HTTP 服务执行的任务默认使用 `interactive_human=False`，避免在无终端环境下挂起。
+
 ## 示例
 
 查看 `examples/` 目录获取更多使用示例：
